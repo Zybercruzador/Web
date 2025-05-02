@@ -1,0 +1,356 @@
+// Panterai Chatbot - Vanilla JavaScript Version
+
+// Default responses - you can expand these or connect to an API later
+const defaultResponses = {
+  greeting: ["Hello! I'm Panterai. How can I help you today?", "Hi there! Panterai at your service. What can I assist you with?", "Welcome! I'm Panterai. Ask me anything about the programming club!"],
+  goodbye: ["Goodbye! Have a great day!", "See you later!", "Come back anytime!"],
+  fallback: ["I'm not sure I understand. Could you rephrase that?", "I'm still learning. Can you try asking differently?", "I don't have information about that yet."],
+  programming: ["Our programming club meets every Tuesday at 7PM in Room 203.", "We focus on web development, data science, and mobile app development.", "Everyone is welcome, regardless of experience level!"],
+  projects: ["Our current projects include a campus event app and a collaborative coding platform.", "We collaborate on open-source projects throughout the semester.", "Each member can pitch project ideas at our monthly planning sessions."]
+};
+
+// Simple NLP function to analyze input
+function analyzeInput(input) {
+  input = input.toLowerCase();
+  
+  if (input.match(/hi|hello|hey|howdy/))
+    return "greeting";
+  if (input.match(/bye|goodbye|see you|later/))
+    return "goodbye";
+  if (input.match(/programming|coding|code|develop/))
+    return "programming";
+  if (input.match(/project|work|build|create|making/))
+    return "projects";
+  
+  return "fallback";
+}
+
+// Get random response from category
+function getResponse(category) {
+  const responses = defaultResponses[category] || defaultResponses.fallback;
+  return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// Main Panterai class
+class Panterai {
+  constructor(containerId) {
+    this.containerId = containerId;
+    this.messages = [
+      { text: "Hi! I'm Panterai, your Programming Club assistant. How can I help you?", sender: 'bot' }
+    ];
+    this.isTyping = false;
+    
+    this.initialize();
+  }
+  
+  initialize() {
+    // Create HTML structure
+    const container = document.getElementById(this.containerId);
+    if (!container) {
+      console.error(`Container with ID ${this.containerId} not found`);
+      return;
+    }
+    
+    container.innerHTML = `
+      <div class="panterai-container">
+        <div class="panterai-header">
+          <span>Panterai</span>
+          <button class="panterai-clear-btn" aria-label="Clear chat">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="panterai-messages"></div>
+        <div class="panterai-input-area">
+          <input type="text" class="panterai-input" placeholder="Type a message...">
+          <button class="panterai-send-btn" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2L11 13"></path>
+              <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Add styles
+    this.addStyles();
+    
+    // Cache DOM elements
+    this.messagesEl = container.querySelector('.panterai-messages');
+    this.inputEl = container.querySelector('.panterai-input');
+    this.sendBtn = container.querySelector('.panterai-send-btn');
+    this.clearBtn = container.querySelector('.panterai-clear-btn');
+    
+    // Add event listeners
+    this.inputEl.addEventListener('input', () => {
+      this.sendBtn.disabled = this.inputEl.value.trim() === '';
+    });
+    
+    this.inputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && this.inputEl.value.trim() !== '') {
+        this.handleSend();
+      }
+    });
+    
+    this.sendBtn.addEventListener('click', () => {
+      if (this.inputEl.value.trim() !== '') {
+        this.handleSend();
+      }
+    });
+    
+    this.clearBtn.addEventListener('click', () => {
+      this.clearChat();
+    });
+    
+    // Render initial messages
+    this.renderMessages();
+  }
+  
+  addStyles() {
+    // Add CSS if not already added
+    if (!document.getElementById('panterai-styles')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'panterai-styles';
+      styleEl.textContent = `
+        .panterai-container {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+          max-width: 400px;
+          height: 500px;
+          border: 1px solid #e2e8f0;
+          border-radius: 0.5rem;
+          overflow: hidden;
+          background: white;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        
+        .panterai-header {
+          background: #3b82f6;
+          color: white;
+          padding: 0.75rem;
+          font-weight: 500;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .panterai-clear-btn {
+          background: none;
+          border: none;
+          color: white;
+          cursor: pointer;
+          padding: 0.25rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .panterai-clear-btn:hover {
+          color: #e2e8f0;
+        }
+        
+        .panterai-messages {
+          flex: 1;
+          padding: 1rem;
+          overflow-y: auto;
+          background: #f8fafc;
+        }
+        
+        .panterai-message {
+          margin-bottom: 0.75rem;
+          max-width: 75%;
+          clear: both;
+        }
+        
+        .panterai-message-user {
+          float: right;
+        }
+        
+        .panterai-message-bot {
+          float: left;
+        }
+        
+        .panterai-message-content {
+          padding: 0.75rem;
+          border-radius: 0.5rem;
+          display: inline-block;
+        }
+        
+        .panterai-message-user .panterai-message-content {
+          background: #3b82f6;
+          color: white;
+          border-bottom-right-radius: 0;
+        }
+        
+        .panterai-message-bot .panterai-message-content {
+          background: #e2e8f0;
+          color: #1e293b;
+          border-bottom-left-radius: 0;
+        }
+        
+        .panterai-typing {
+          background: #e2e8f0;
+          padding: 0.75rem;
+          border-radius: 0.5rem;
+          border-bottom-left-radius: 0;
+          display: inline-flex;
+          align-items: center;
+          margin-bottom: 0.75rem;
+        }
+        
+        .panterai-typing-dot {
+          width: 8px;
+          height: 8px;
+          background: #94a3b8;
+          border-radius: 50%;
+          margin: 0 2px;
+          animation: typing-bounce 1.4s infinite;
+        }
+        
+        .panterai-typing-dot:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        
+        .panterai-typing-dot:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+        
+        @keyframes typing-bounce {
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-4px); }
+        }
+        
+        .panterai-input-area {
+          display: flex;
+          border-top: 1px solid #e2e8f0;
+          padding: 0.75rem;
+          background: white;
+        }
+        
+        .panterai-input {
+          flex: 1;
+          border: 1px solid #cbd5e1;
+          border-right: none;
+          border-radius: 0.375rem 0 0 0.375rem;
+          padding: 0.5rem 0.75rem;
+          outline: none;
+          font-size: 0.875rem;
+        }
+        
+        .panterai-input:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+        }
+        
+        .panterai-send-btn {
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 0 0.375rem 0.375rem 0;
+          padding: 0.5rem 0.75rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .panterai-send-btn:hover:not(:disabled) {
+          background: #2563eb;
+        }
+        
+        .panterai-send-btn:disabled {
+          background: #93c5fd;
+          cursor: not-allowed;
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+  }
+  
+  renderMessages() {
+    // Clear messages container
+    this.messagesEl.innerHTML = '';
+    
+    // Render each message
+    this.messages.forEach(message => {
+      const messageEl = document.createElement('div');
+      messageEl.className = `panterai-message panterai-message-${message.sender}`;
+      
+      const contentEl = document.createElement('div');
+      contentEl.className = 'panterai-message-content';
+      contentEl.textContent = message.text;
+      
+      messageEl.appendChild(contentEl);
+      this.messagesEl.appendChild(messageEl);
+    });
+    
+    // Add typing indicator if needed
+    if (this.isTyping) {
+      const typingEl = document.createElement('div');
+      typingEl.className = 'panterai-message panterai-message-bot';
+      
+      const dotsEl = document.createElement('div');
+      dotsEl.className = 'panterai-typing';
+      
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'panterai-typing-dot';
+        dotsEl.appendChild(dot);
+      }
+      
+      typingEl.appendChild(dotsEl);
+      this.messagesEl.appendChild(typingEl);
+    }
+    
+    // Scroll to bottom
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+  }
+  
+  handleSend() {
+    const text = this.inputEl.value.trim();
+    if (text === '') return;
+    
+    // Add user message
+    this.messages.push({ text, sender: 'user' });
+    this.inputEl.value = '';
+    this.sendBtn.disabled = true;
+    this.renderMessages();
+    
+    // Show typing indicator
+    this.isTyping = true;
+    this.renderMessages();
+    
+    // Process response with delay
+    setTimeout(() => {
+      const category = analyzeInput(text);
+      const response = getResponse(category);
+      
+      // Hide typing indicator and add bot response
+      this.isTyping = false;
+      this.messages.push({ text: response, sender: 'bot' });
+      this.renderMessages();
+    }, 800);
+  }
+  
+  clearChat() {
+    this.messages = [
+      { text: "Hi! I'm Panterai, your Programming Club assistant. How can I help you?", sender: 'bot' }
+    ];
+    this.renderMessages();
+  }
+}
+
+// Helper function to initialize Panterai
+function initPanterai(containerId) {
+  return new Panterai(containerId);
+}
+
+// Usage example:
+// 1. Add a container div to your HTML: <div id="panterai-chat"></div>
+// 2. Initialize Panterai: const chatbot = initPanterai('panterai-chat');
